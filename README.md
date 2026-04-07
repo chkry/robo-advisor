@@ -169,6 +169,166 @@ npm run dev
 
 ---
 
+## Database Verification with Prisma Studio
+
+Prisma Studio is a built-in visual database browser. No extra tools or installs needed — it ships with the `prisma` package already in this project.
+
+### Launch Prisma Studio
+
+```bash
+cd robo-advisor
+npx prisma studio
+```
+
+The terminal will print:
+
+```
+Loaded Prisma config from prisma.config.ts.
+Prisma schema loaded from prisma/schema.prisma.
+Prisma Studio is up on http://localhost:5555
+```
+
+Open **http://localhost:5555** in your browser.
+
+---
+
+### What you will see
+
+#### Model list (left panel)
+
+The left sidebar shows all three database models as clickable cards:
+
+```
+┌─────────────────────────────────┐
+│  Stock        2 records    →    │
+│  Order        5 records    →    │
+│  OrderSplit  10 records    →    │
+└─────────────────────────────────┘
+```
+
+Click any model name to open its table view.
+
+---
+
+#### Stock table
+
+After registering stocks via `POST /api/v1/stocks`, the **Stock** table looks like:
+
+```
+┌──────────────────────────────────────┬────────┬──────────────────────┬────────┬─────────────────────┬─────────────────────┐
+│ id (String)                          │ ticker │ name                 │ price  │ created_at          │ updated_at          │
+├──────────────────────────────────────┼────────┼──────────────────────┼────────┼─────────────────────┼─────────────────────┤
+│ 64d2e3ed-40ec-4ff1-86dd-767b52aad26b │ AAPL   │ Apple Inc.           │ 192.5  │ 2026-04-07 21:05:30 │ 2026-04-07 21:05:30 │
+│ 24b9d689-1d7d-4cbd-8f05-8a368d383052 │ MSFT   │ Microsoft Corp.      │ 415.0  │ 2026-04-07 21:05:30 │ 2026-04-07 21:05:30 │
+└──────────────────────────────────────┴────────┴──────────────────────┴────────┴─────────────────────┴─────────────────────┘
+```
+
+---
+
+#### Order table
+
+After placing orders via `POST /api/v1/orders`, the **Order** table looks like:
+
+```
+┌──────────────────────────────────────┬──────┬───────────┬──────────────┬─────────────────────────┬─────────────────────┐
+│ id (String)                          │ type │ status    │ total_amount │ scheduled_execution_at  │ created_at          │
+├──────────────────────────────────────┼──────┼───────────┼──────────────┼─────────────────────────┼─────────────────────┤
+│ 65704e33-5ff6-46de-aeb8-cb024fe3dfd7 │ BUY  │ SCHEDULED │ 10000        │ 2026-04-08 13:30:00     │ 2026-04-07 21:05:30 │
+└──────────────────────────────────────┴──────┴───────────┴──────────────┴─────────────────────────┴─────────────────────┘
+```
+
+Each row has a **>** expand arrow on the right — click it to see the related `OrderSplit` records inline.
+
+---
+
+#### OrderSplit table
+
+The **OrderSplit** table shows one row per stock per order:
+
+```
+┌──────────────────────────────────────┬──────────────────────────────────────┬────────┬────────┬──────────────┬────────┬───────────┐
+│ id (String)                          │ order_id (String)                    │ ticker │ weight │ dollar_amount│ shares │ price_used│
+├──────────────────────────────────────┼──────────────────────────────────────┼────────┼────────┼──────────────┼────────┼───────────┤
+│ a1b2c3d4-...                         │ 65704e33-5ff6-46de-aeb8-cb024fe3dfd7 │ AAPL   │ 0.6    │ 6000         │ 31.169 │ 192.5     │
+│ e5f6a7b8-...                         │ 65704e33-5ff6-46de-aeb8-cb024fe3dfd7 │ MSFT   │ 0.4    │ 4000         │ 9.639  │ 415.0     │
+└──────────────────────────────────────┴──────────────────────────────────────┴────────┴────────┴──────────────┴────────┴───────────┘
+```
+
+---
+
+### Inline editing
+
+Click any cell to edit its value directly in the browser. Click **Save 1 change** (top right) to write it to PostgreSQL. This is useful for manually updating a stock price or changing an order status from `SCHEDULED` to `EXECUTED` for testing.
+
+---
+
+### Filters and sorting
+
+Each column header has:
+- **Sort arrow** — click to sort ascending/descending
+- **Filter icon** — filter rows by value (e.g. show only `BUY` orders, or only `AAPL` splits)
+
+---
+
+### Quick verification workflow
+
+Run these curls first to seed data, then open Studio to confirm:
+
+```bash
+# 1. Register two stocks
+curl -s -X POST http://localhost:3000/api/v1/stocks \
+  -H "Content-Type: application/json" \
+  -d '{"ticker":"AAPL","name":"Apple Inc.","price":192.50}' | jq .id
+
+curl -s -X POST http://localhost:3000/api/v1/stocks \
+  -H "Content-Type: application/json" \
+  -d '{"ticker":"MSFT","name":"Microsoft Corporation","price":415.00}' | jq .id
+
+# 2. Place an order
+curl -s -X POST http://localhost:3000/api/v1/orders \
+  -H "Content-Type: application/json" \
+  -d '{"portfolio":[{"ticker":"AAPL","weight":0.6},{"ticker":"MSFT","weight":0.4}],"totalAmount":10000,"type":"BUY"}' | jq .orderId
+
+# 3. Open Prisma Studio
+npx prisma studio
+```
+
+In Studio you should now see:
+- `Stock` → 2 records (AAPL and MSFT)
+- `Order` → 1 record (status: SCHEDULED)
+- `OrderSplit` → 2 records (one per stock, linked to the order)
+
+---
+
+### Alternative: psql terminal
+
+If you prefer the terminal, connect directly with:
+
+```bash
+/opt/homebrew/opt/postgresql@17/bin/psql robo_advisor
+```
+
+Useful queries:
+
+```sql
+-- All stocks
+SELECT ticker, name, price, updated_at FROM stocks ORDER BY ticker;
+
+-- All orders
+SELECT id, type, status, total_amount, created_at FROM orders ORDER BY created_at DESC;
+
+-- Splits joined to their order
+SELECT o.type, o.total_amount, s.ticker, s.dollar_amount, s.shares, s.price_used
+FROM orders o
+JOIN order_splits s ON s.order_id = o.id
+ORDER BY o.created_at DESC;
+
+-- Exit
+\q
+```
+
+---
+
 ## Configuration
 
 | Variable | Default | Description |
