@@ -1,7 +1,13 @@
 import { createApp } from './app';
 import config from './config/app.config';
+import redis from './cache/redis.client';
+import prisma from './db/prisma.client';
 
 const app = createApp();
+
+redis.connect().catch((err) => {
+  console.error('[Redis] Failed to connect:', err.message);
+});
 
 const server = app.listen(config.port, () => {
   console.log('');
@@ -18,12 +24,17 @@ const server = app.listen(config.port, () => {
   console.log(`  \x1b[36mGET\x1b[0m    /api/v1/orders/history`);
   console.log(`  \x1b[36mGET\x1b[0m    /api/v1/orders/:id`);
   console.log(`  \x1b[36mGET\x1b[0m    /api/v1/health`);
+  console.log(`  \x1b[36mPOST\x1b[0m   /api/v1/stocks`);
+  console.log(`  \x1b[36mGET\x1b[0m    /api/v1/stocks`);
+  console.log(`  \x1b[36mGET\x1b[0m    /api/v1/stocks/:ticker`);
   console.log('');
 });
 
 function shutdown(signal: string): void {
   console.log(`\n  \x1b[33m${signal} received. Shutting down gracefully...\x1b[0m`);
-  server.close(() => {
+  server.close(async () => {
+    await redis.quit();
+    await prisma.$disconnect();
     console.log('  \x1b[32m✓\x1b[0m Server closed.');
     process.exit(0);
   });

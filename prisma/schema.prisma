@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Stock {
+  id        String   @id @default(uuid())
+  ticker    String   @unique
+  name      String
+  price     Float
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("stocks")
+}
+
+model Order {
+  id                   String       @id @default(uuid())
+  type                 OrderType
+  status               OrderStatus  @default(SCHEDULED)
+  totalAmount          Float        @map("total_amount")
+  scheduledExecutionAt DateTime     @map("scheduled_execution_at")
+  createdAt            DateTime     @default(now()) @map("created_at")
+  splits               OrderSplit[]
+
+  @@map("orders")
+}
+
+model OrderSplit {
+  id           String @id @default(uuid())
+  orderId      String @map("order_id")
+  ticker       String
+  weight       Float
+  dollarAmount Float  @map("dollar_amount")
+  shares       Float
+  priceUsed    Float  @map("price_used")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_splits")
+}
+
+enum OrderType {
+  BUY
+  SELL
+}
+
+enum OrderStatus {
+  PENDING
+  SCHEDULED
+  EXECUTED
+}

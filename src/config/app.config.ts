@@ -48,6 +48,9 @@ const config = {
       return parsed;
     })(),
   },
+
+  databaseUrl: process.env['DATABASE_URL'] ?? '',
+  redisUrl: process.env['REDIS_URL'] ?? 'redis://localhost:6379',
 } as const;
 
 export type AppConfig = typeof config;
